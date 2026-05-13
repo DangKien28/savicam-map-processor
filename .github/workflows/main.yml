@@ -1,0 +1,61 @@
+name: Bake Offline Map Data (SaViCam T-Mod)
+
+# Kích hoạt thủ công. Bản đồ thường không cần cập nhật hàng ngày, 
+# chỉ cần chạy 1 lần hoặc khi có đợt cập nhật dữ liệu đường xá mới.
+on:
+  workflow_dispatch: 
+
+jobs:
+  bake-and-upload:
+    runs-on: ubuntu-latest # Sử dụng môi trường Linux tiêu chuẩn
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Cài đặt Java (Môi trường cho GraphHopper)
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 3. Cài đặt công cụ lọc bản đồ (Osmium)
+        run: sudo apt-get update && sudo apt-get install -y osmium-tool
+
+      - name: 4. Tải dữ liệu bản đồ Việt Nam (OpenStreetMap)
+        run: |
+          wget https://download.geofabrik.de/asia/vietnam-latest.osm.pbf -O vietnam.osm.pbf
+
+      - name: 5. Lọc dữ liệu chỉ dành cho người đi bộ (Pedestrian-Only)
+        # Dùng Osmium gạch bỏ đường cao tốc/ô tô, chỉ giữ lại vỉa hè, ngõ hẻm, bậc thang...
+        run: |
+          osmium tags-filter vietnam.osm.pbf w/highway=pedestrian,footway,steps,path,residential -o vietnam-pedestrian.osm.pbf
+
+      - name: 6. Tải Engine Tính toán Lộ trình (GraphHopper)
+        run: |
+          wget https://github.com/graphhopper/graphhopper/releases/download/8.0/graphhopper-web-8.0.jar -O graphhopper.jar
+
+      - name: 7. Tính toán trước các tuyến đường (Pre-build)
+        # Chạy lệnh import để "nướng" dữ liệu. (Yêu cầu có sẵn file config.yml cấu hình profile 'foot' trong repo)
+        run: |
+          java -Ddw.graphhopper.datareader.file=vietnam-pedestrian.osm.pbf -jar graphhopper.jar import config.yml
+
+      - name: 8. Đóng gói dữ liệu (Packaging)
+        # Thư mục graph-cache chứa "sổ tay lộ trình" đã được tính sẵn
+        run: |
+          zip -r savicam-offline-map.zip graph-cache/
+
+      - name: 9. Cấu hình AWS CLI cho Cloudflare R2
+        # Cloudflare R2 tương thích hoàn toàn với S3 API của AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          aws-region: auto 
+
+      - name: 10. Đẩy "Sổ tay lộ trình" lên Cloudflare R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          aws s3 cp savicam-offline-map.zip s3://savicam-maps/ \
+            --endpoint-url https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
