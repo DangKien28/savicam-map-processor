@@ -1,6 +1,5 @@
 name: Bake Offline Map Data (SaViCam T-Mod)
 
-# Kích hoạt thủ công.
 on:
   workflow_dispatch: 
 
@@ -41,15 +40,11 @@ jobs:
         run: |
           zip -r savicam-offline-map.zip graph-cache/
 
-      - name: 9. Cấu hình AWS CLI cho Cloudflare R2
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.R2_ACCESS_KEY }}
-          aws-secret-access-key: ${{ secrets.R2_SECRET_KEY }}
-          aws-region: auto 
-
-      - name: 10. Đẩy "Sổ tay lộ trình" lên Cloudflare R2
+      - name: 9. Đẩy "Sổ tay lộ trình" lên Cloudflare R2
         env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_KEY }}
+          AWS_DEFAULT_REGION: auto
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
         run: |
           aws s3 cp savicam-offline-map.zip s3://savicam-maps/ \
