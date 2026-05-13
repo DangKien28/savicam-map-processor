@@ -1,0 +1,10 @@
+graphhopper:
+  datareader.file: ""
+  graph.location: graph-cache
+  profiles:
+    - name: foot
+      vehicle: foot
+      weighting: fastest
+  profiles_ch:
+    - profile: foot
+  profiles_lm: []
