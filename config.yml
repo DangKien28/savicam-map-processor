@@ -5,7 +5,12 @@ graphhopper:
   profiles:
     - name: foot
       vehicle: foot
-      weighting: fastest
+      weighting: custom
+      custom_model:
+        distance_influence: 15
+        priority:
+          - if: "road_access == DESTINATION"
+            multiply_by: 0.1
   profiles_ch:
     - profile: foot
   profiles_lm: []
